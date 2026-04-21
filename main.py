@@ -2,7 +2,7 @@
 """
 🤖 Kleverz AI Design Bot
 يعمل كل أحد 10:00 صباحاً (توقيت القاهرة)
-يستخدم Google Gemini (google-genai) لتوليد الصور
+يستخدم كل خانات Baserow لتوليد تصاميم احترافية
 """
 
 import os
@@ -31,57 +31,85 @@ BASEROW_TOKEN  = os.environ["BASEROW_TOKEN"]
 IMGBB_API_KEY  = os.environ["IMGBB_API_KEY"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
-TABLE_ID     = 774
-FIELD_PROMPT = "field_7484"
-FIELD_DESIGN = "field_7488"
-BASE_URL     = "https://baserow.kleverz.cloud"
+# ==================
+# Baserow Config
+# ==================
+TABLE_ID = 774
+BASE_URL = "https://baserow.kleverz.cloud"
+
+# جميع الخانات بالـ Field IDs
+FIELDS = {
+    "day":            "field_7475",
+    "date":           "field_7476",
+    "day_name":       "field_7477",
+    "platform":       "field_7478",
+    "topic_category": "field_7479",
+    "content_type":   "field_7480",
+    "post_copy":      "field_7481",
+    "hashtags":       "field_7482",
+    "video_script":   "field_7483",
+    "ai_prompt":      "field_7484",
+    "infographic":    "field_7485",
+    "visual_style":   "field_7486",
+    "cta":            "field_7487",
+    "designs_link":   "field_7488",
+}
 
 # ==================
-# إعداد Gemini Client
+# إعداد Gemini
 # ==================
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ==================
 # مقاسات المنصات
 # ==================
-PLATFORMS = {
-    "instagram_post": {
-        "label": "إنستجرام بوست",
-        "ratio": "1:1",
-        "w": 1080, "h": 1080,
-        "gemini_ratio": "1:1"
-    },
-    "instagram_story": {
-        "label": "إنستجرام ستوري / ريلز",
-        "ratio": "9:16",
-        "w": 1080, "h": 1920,
-        "gemini_ratio": "9:16"
-    },
-    "facebook_post": {
-        "label": "فيسبوك بوست",
-        "ratio": "16:9",
-        "w": 1200, "h": 630,
-        "gemini_ratio": "16:9"
-    },
-    "twitter_post": {
-        "label": "تويتر / X",
-        "ratio": "16:9",
-        "w": 1600, "h": 900,
-        "gemini_ratio": "16:9"
-    },
+PLATFORM_CONFIGS = {
+    "facebook": [
+        {"key": "facebook_post",  "label": "فيسبوك بوست",    "ratio": "16:9", "w": 1200, "h": 630},
+        {"key": "facebook_reel",  "label": "فيسبوك ريلز",    "ratio": "9:16", "w": 1080, "h": 1920},
+    ],
+    "instagram": [
+        {"key": "instagram_post",  "label": "إنستجرام بوست", "ratio": "1:1",  "w": 1080, "h": 1080},
+        {"key": "instagram_story", "label": "إنستجرام ستوري","ratio": "9:16", "w": 1080, "h": 1920},
+    ],
+    "linkedin": [
+        {"key": "linkedin_post",  "label": "لينكدإن بوست",   "ratio": "16:9", "w": 1200, "h": 627},
+    ],
+    "tiktok": [
+        {"key": "tiktok_cover",   "label": "تيك توك",        "ratio": "9:16", "w": 1080, "h": 1920},
+    ],
+    "x": [
+        {"key": "twitter_post",   "label": "تويتر/X",        "ratio": "16:9", "w": 1600, "h": 900},
+    ],
+    "default": [
+        {"key": "instagram_post",  "label": "إنستجرام بوست", "ratio": "1:1",  "w": 1080, "h": 1080},
+        {"key": "facebook_post",   "label": "فيسبوك بوست",   "ratio": "16:9", "w": 1200, "h": 630},
+    ],
+}
+
+# ==================
+# أنماط التصميم
+# ==================
+VISUAL_STYLE_GUIDE = {
+    "Minimalist Infographic": "clean minimalist infographic design, white background, simple icons, clear data visualization, modern sans-serif typography",
+    "Real Photography":       "photorealistic professional photography style, high quality, cinematic lighting, corporate feel",
+    "Motion Graphics":        "dynamic motion graphics style, vibrant colors, bold typography, energetic composition",
+    "3D Illustration":        "modern 3D illustration style, soft shadows, isometric or perspective view, professional finish",
+    "Animated":               "flat design animation style, bright colors, simple shapes, modern and clean",
 }
 
 # ============================================================
 # 1. Baserow — جلب الصفوف الجديدة
 # ============================================================
 def get_new_rows():
+    """جلب الصفوف التي فيها AI_Design_Prompt وخانة Designs link فارغة"""
     url = f"{BASE_URL}/api/database/rows/table/{TABLE_ID}/"
     headers = {"Authorization": f"Token {BASEROW_TOKEN}"}
     params = {
         "user_field_names": "false",
         "size": 100,
-        f"filter__{FIELD_PROMPT}__not_empty": "true",
-        f"filter__{FIELD_DESIGN}__empty": "true",
+        f"filter__{FIELDS['ai_prompt']}__not_empty":  "true",
+        f"filter__{FIELDS['designs_link']}__empty":   "true",
     }
     try:
         r = requests.get(url, headers=headers, params=params, timeout=30)
@@ -103,7 +131,11 @@ def update_row(row_id, text):
         "Content-Type": "application/json"
     }
     try:
-        r = requests.patch(url, headers=headers, json={FIELD_DESIGN: text}, timeout=30)
+        r = requests.patch(
+            url, headers=headers,
+            json={FIELDS["designs_link"]: text},
+            timeout=30
+        )
         r.raise_for_status()
         logger.info(f"✅ تم تحديث الصف {row_id}")
         return True
@@ -112,7 +144,29 @@ def update_row(row_id, text):
         return False
 
 # ============================================================
-# 3. كشف اللغة وبناء البرومبت
+# 3. استخراج بيانات الصف
+# ============================================================
+def extract_row_data(row):
+    """استخراج كل بيانات الصف بشكل منظم"""
+    return {
+        "id":             row.get("id"),
+        "day":            row.get(FIELDS["day"], ""),
+        "date":           row.get(FIELDS["date"], ""),
+        "day_name":       row.get(FIELDS["day_name"], ""),
+        "platform":       row.get(FIELDS["platform"], "").strip().lower(),
+        "topic_category": row.get(FIELDS["topic_category"], ""),
+        "content_type":   row.get(FIELDS["content_type"], ""),
+        "post_copy":      row.get(FIELDS["post_copy"], ""),
+        "hashtags":       row.get(FIELDS["hashtags"], ""),
+        "video_script":   row.get(FIELDS["video_script"], ""),
+        "ai_prompt":      row.get(FIELDS["ai_prompt"], "").strip(),
+        "infographic":    row.get(FIELDS["infographic"], "").strip(),
+        "visual_style":   row.get(FIELDS["visual_style"], "").strip(),
+        "cta":            row.get(FIELDS["cta"], "").strip(),
+    }
+
+# ============================================================
+# 4. كشف اللغة
 # ============================================================
 def detect_language(text):
     arabic  = len(re.findall(r'[\u0600-\u06FF]', text))
@@ -122,67 +176,129 @@ def detect_language(text):
         return "arabic"
     return "arabic" if arabic / total > 0.4 else "english"
 
-def build_prompt(original, platform_key):
-    lang = detect_language(original)
-    p    = PLATFORMS[platform_key]
+# ============================================================
+# 5. بناء البرومبت الكامل من كل الخانات
+# ============================================================
+def build_full_prompt(data, platform_config):
+    """بناء برومبت شامل يستخدم كل خانات الجدول"""
 
+    # كشف اللغة
+    combined_text = f"{data['ai_prompt']} {data['post_copy']} {data['infographic']}"
+    lang = detect_language(combined_text)
+
+    # تعليمات اتجاه النص
     if lang == "arabic":
         direction = """
-[اتجاه النص — مهم جداً]
-- جميع النصوص العربية من اليمين إلى اليسار RTL
-- محاذاة النص: يمين
-- الكلمات العربية تُقرأ بشكل طبيعي من اليمين لليسار
-- لا تعكس الحروف أبداً
-- الأرقام تبقى من اليسار لليمين
+[TEXT DIRECTION - CRITICAL]:
+- ALL Arabic text MUST flow RIGHT-TO-LEFT (RTL)
+- Text alignment: RIGHT
+- Arabic words must be readable naturally from right to left
+- DO NOT reverse or mirror Arabic letters
+- Numbers stay left-to-right within Arabic context
 """
     else:
-        direction = "[Text Direction] Left-to-Right (LTR), left-aligned."
+        direction = "[TEXT DIRECTION]: Left-to-Right (LTR), left-aligned."
 
-    return f"""
+    # النمط البصري
+    style_key    = data["visual_style"]
+    style_guide  = VISUAL_STYLE_GUIDE.get(style_key, "professional modern social media design")
+
+    # مقاس المنصة
+    p_label = platform_config["label"]
+    p_ratio = platform_config["ratio"]
+    p_w     = platform_config["w"]
+    p_h     = platform_config["h"]
+
+    # بناء قسم الإنفوجرافيك
+    infographic_section = ""
+    if data["infographic"] and data["infographic"].upper() != "N/A":
+        infographic_section = f"""
+[INFOGRAPHIC DATA - Must be displayed clearly in the design]:
+{data['infographic']}
+"""
+
+    # بناء قسم الـ CTA
+    cta_section = ""
+    if data["cta"]:
+        cta_section = f"""
+[CALL TO ACTION - Must appear prominently]:
+"{data['cta']}"
+"""
+
+    # بناء البرومبت الكامل
+    prompt = f"""
 {direction}
-أنشئ تصميم احترافي لـ {p['label']} بنسبة {p['ratio']} ({p['w']}×{p['h']}px)
 
-المحتوى المطلوب:
-{original}
+[PLATFORM]: {p_label}
+[DIMENSIONS]: {p_ratio} ratio — {p_w}×{p_h}px
+[VISUAL STYLE]: {style_guide}
+[CONTENT TYPE]: {data['content_type']}
+[TOPIC]: {data['topic_category']}
 
-المتطلبات:
-- تصميم عصري واحترافي لوسائل التواصل الاجتماعي
-- ألوان جذابة وتسلسل هرمي واضح للعناصر
-- نصوص واضحة ومقروءة تماماً
-- عربي: RTL محاذاة يمين | إنجليزي: LTR محاذاة يسار
-- خلفية مناسبة للموضوع
-- تصميم يجذب الانتباه ويحقق التفاعل
+[MAIN DESIGN REQUEST]:
+{data['ai_prompt']}
+
+{infographic_section}
+{cta_section}
+
+[DESIGN REQUIREMENTS]:
+- Professional, high-quality social media design
+- Style: {style_key}
+- Platform optimized for {p_label}
+- Clear visual hierarchy with proper typography
+- Colors and composition suited for {data['topic_category']}
+- Arabic text: right-to-left, right-aligned
+- English text: left-to-right, left-aligned
+- All text must be perfectly readable
+- Design should encourage engagement and action
 """.strip()
 
+    return prompt, lang
+
 # ============================================================
-# 4. توليد الصورة — Gemini Imagen 3
+# 6. تحديد منصات التصميم
 # ============================================================
-def generate_image(prompt, platform_key):
-    p = PLATFORMS[platform_key]
+def get_platform_configs(platform_str):
+    """تحديد مقاسات التصميم بناءً على المنصة"""
+    platform_lower = platform_str.lower().strip()
+
+    for key in PLATFORM_CONFIGS:
+        if key in platform_lower:
+            return PLATFORM_CONFIGS[key]
+
+    # افتراضي لو المنصة مش معروفة
+    logger.warning(f"⚠️ منصة غير معروفة: '{platform_str}' — سيتم استخدام الافتراضي")
+    return PLATFORM_CONFIGS["default"]
+
+# ============================================================
+# 7. توليد الصورة — Gemini Imagen 3
+# ============================================================
+def generate_image(prompt, ratio):
+    """توليد صورة باستخدام Gemini Imagen 3"""
     try:
         response = client.models.generate_images(
             model="imagen-3.0-generate-002",
             prompt=prompt,
             config=types.GenerateImagesConfig(
                 number_of_images=1,
-                aspect_ratio=p["gemini_ratio"],
+                aspect_ratio=ratio,
                 safety_filter_level="BLOCK_ONLY_HIGH",
                 person_generation="ALLOW_ADULT",
             ),
         )
         if response.generated_images:
             img_bytes = response.generated_images[0].image.image_bytes
-            logger.info(f"✅ تم توليد صورة {platform_key} بـ Imagen 3")
+            logger.info(f"✅ Imagen 3 — تم التوليد بنجاح")
             return img_bytes
-        logger.warning(f"⚠️ Imagen لم يُرجع صورة لـ {platform_key}")
-        return None
+        logger.warning("⚠️ Imagen لم يُرجع صورة — جاري المحاولة بـ Flash")
+        return generate_image_flash(prompt, ratio)
 
     except Exception as e:
-        logger.warning(f"⚠️ Imagen فشل: {e} — جاري المحاولة بـ Gemini Flash...")
-        return generate_image_flash(prompt, platform_key)
+        logger.warning(f"⚠️ Imagen فشل: {e} — جاري المحاولة بـ Flash")
+        return generate_image_flash(prompt, ratio)
 
-def generate_image_flash(prompt, platform_key):
-    """بديل تلقائي: Gemini 2.0 Flash"""
+def generate_image_flash(prompt, ratio):
+    """بديل: Gemini 2.0 Flash"""
     try:
         response = client.models.generate_content(
             model="gemini-2.0-flash-preview-image-generation",
@@ -194,15 +310,15 @@ def generate_image_flash(prompt, platform_key):
         for part in response.candidates[0].content.parts:
             if part.inline_data:
                 img_bytes = base64.b64decode(part.inline_data.data)
-                logger.info(f"✅ تم توليد صورة {platform_key} بـ Flash")
+                logger.info("✅ Gemini Flash — تم التوليد بنجاح")
                 return img_bytes
         return None
     except Exception as e:
-        logger.error(f"❌ Flash فشل كمان لـ {platform_key}: {e}")
+        logger.error(f"❌ Flash فشل: {e}")
         return None
 
 # ============================================================
-# 5. رفع الصورة على ImgBB
+# 8. رفع الصورة على ImgBB
 # ============================================================
 def upload_imgbb(image_bytes, title):
     try:
@@ -210,9 +326,9 @@ def upload_imgbb(image_bytes, title):
         r = requests.post(
             "https://api.imgbb.com/1/upload",
             data={
-                "key": IMGBB_API_KEY,
-                "image": encoded,
-                "name": title,
+                "key":        IMGBB_API_KEY,
+                "image":      encoded,
+                "name":       title,
                 "expiration": 0,
             },
             timeout=60
@@ -221,7 +337,7 @@ def upload_imgbb(image_bytes, title):
         result = r.json()
         if result.get("success"):
             url = result["data"]["url"]
-            logger.info(f"✅ رُفعت الصورة: {url}")
+            logger.info(f"✅ رُفعت: {url}")
             return url
         logger.error(f"❌ ImgBB رفض: {result}")
         return None
@@ -230,62 +346,85 @@ def upload_imgbb(image_bytes, title):
         return None
 
 # ============================================================
-# 6. تنسيق الروابط النهائية
+# 9. تنسيق الروابط النهائية
 # ============================================================
-def format_links(platform_urls):
-    lines = ["📱 روابط التصاميم:\n"]
-    for key, url in platform_urls.items():
-        p = PLATFORMS[key]
-        lines.append(f"🔗 {p['label']} ({p['ratio']} | {p['w']}×{p['h']}px)")
-        lines.append(f"   {url}\n")
+def format_links(platform_urls, data):
+    lines = [
+        f"📅 اليوم: {data['day']} — {data['day_name']} ({data['date']})",
+        f"📱 المنصة: {data['platform'].upper()}",
+        f"🎨 النمط: {data['visual_style']}",
+        f"📌 الموضوع: {data['topic_category']}",
+        "",
+        "🔗 روابط التصاميم:",
+        ""
+    ]
+    for label, url in platform_urls.items():
+        lines.append(f"▶ {label}")
+        lines.append(f"  {url}")
+        lines.append("")
     lines.append(f"⏰ تاريخ التصميم: {datetime.now().strftime('%Y-%m-%d %H:%M')} UTC")
     return "\n".join(lines)
 
 # ============================================================
-# 7. معالجة صف واحد كامل
+# 10. معالجة صف واحد كامل
 # ============================================================
 def process_row(row):
-    row_id = row.get("id")
-    prompt = row.get(FIELD_PROMPT, "").strip()
+    data = extract_row_data(row)
+    row_id = data["id"]
 
-    if not prompt:
-        logger.warning(f"⚠️ الصف {row_id}: لا يوجد برومبت — تخطي")
+    if not data["ai_prompt"]:
+        logger.warning(f"⚠️ الصف {row_id}: لا يوجد AI_Design_Prompt — تخطي")
         return False
 
-    logger.info(f"\n{'='*55}")
-    logger.info(f"🎯 الصف {row_id}: {prompt[:80]}...")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"🎯 الصف {row_id} | يوم {data['day']} | {data['platform'].upper()}")
+    logger.info(f"📌 الموضوع: {data['topic_category']} | النوع: {data['content_type']}")
+    logger.info(f"🎨 النمط: {data['visual_style']}")
+    logger.info(f"📝 البرومبت: {data['ai_prompt'][:80]}...")
+    if data["infographic"]:
+        logger.info(f"📊 إنفوجرافيك: {data['infographic'][:60]}...")
+    if data["cta"]:
+        logger.info(f"📣 CTA: {data['cta']}")
 
     # علامة جاري التصميم
     update_row(row_id, "🔄 جاري التصميم... يُرجى الانتظار")
 
-    lang = detect_language(prompt)
-    logger.info(f"🌍 اللغة: {'عربي RTL' if lang == 'arabic' else 'إنجليزي LTR'}")
+    # تحديد المنصات المطلوبة
+    platform_configs = get_platform_configs(data["platform"])
+    logger.info(f"📐 سيتم التصميم لـ {len(platform_configs)} مقاس")
 
     platform_urls = {}
 
-    for key, info in PLATFORMS.items():
-        logger.info(f"  🎨 تصميم {info['label']}...")
-        full_prompt = build_prompt(prompt, key)
-        img_bytes   = generate_image(full_prompt, key)
+    for p_config in platform_configs:
+        logger.info(f"\n  🎨 تصميم {p_config['label']} ({p_config['ratio']})...")
+
+        # بناء البرومبت الكامل
+        full_prompt, lang = build_full_prompt(data, p_config)
+        logger.info(f"  🌍 اللغة: {'عربي RTL' if lang == 'arabic' else 'إنجليزي LTR'}")
+
+        # توليد الصورة
+        img_bytes = generate_image(full_prompt, p_config["ratio"])
 
         if img_bytes:
-            title = f"kleverz_r{row_id}_{key}_{datetime.now().strftime('%Y%m%d')}"
+            title = f"kleverz_r{row_id}_{p_config['key']}_{datetime.now().strftime('%Y%m%d')}"
             url   = upload_imgbb(img_bytes, title)
             if url:
-                platform_urls[key] = url
+                platform_urls[p_config["label"]] = url
+        else:
+            logger.warning(f"  ⚠️ فشل توليد {p_config['label']}")
 
         time.sleep(3)
 
     if platform_urls:
-        update_row(row_id, format_links(platform_urls))
-        logger.info(f"🎉 الصف {row_id}: {len(platform_urls)}/{len(PLATFORMS)} تصميم ✅")
+        update_row(row_id, format_links(platform_urls, data))
+        logger.info(f"\n🎉 الصف {row_id}: {len(platform_urls)}/{len(platform_configs)} تصميم ✅")
         return True
 
     update_row(row_id, "❌ فشل التصميم — سيُعاد الأسبوع القادم")
     return False
 
 # ============================================================
-# 8. الدالة الرئيسية
+# 11. الدالة الرئيسية
 # ============================================================
 def main():
     logger.info(f"\n{'🚀'*15}")
@@ -299,28 +438,28 @@ def main():
         logger.info("✨ لا توجد صفوف جديدة هذا الأسبوع")
         return
 
-    logger.info(f"📊 إجمالي الصفوف: {len(rows)}\n")
+    logger.info(f"📊 إجمالي الصفوف للمعالجة: {len(rows)}\n")
 
     success, fail = 0, 0
 
     for i, row in enumerate(rows, 1):
-        logger.info(f"\n[{i}/{len(rows)}] ══════════════════════")
+        logger.info(f"\n[{i}/{len(rows)}] ══════════════════════════════")
         try:
             if process_row(row):
                 success += 1
             else:
                 fail += 1
         except Exception as e:
-            logger.error(f"❌ خطأ غير متوقع: {e}")
+            logger.error(f"❌ خطأ غير متوقع في الصف {row.get('id')}: {e}")
             fail += 1
         time.sleep(5)
 
-    logger.info(f"\n{'='*55}")
-    logger.info(f"📋 النتيجة النهائية:")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"📋 التقرير النهائي:")
     logger.info(f"   ✅ نجح  : {success} صف")
     logger.info(f"   ❌ فشل  : {fail} صف")
     logger.info(f"   📊 إجمالي: {success + fail} صف")
-    logger.info(f"{'='*55}")
+    logger.info(f"{'='*60}")
 
 if __name__ == "__main__":
     main()
