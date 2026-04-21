@@ -2,8 +2,8 @@ name: 🎨 Kleverz AI Design Bot
 
 on:
   schedule:
-    - cron: '0 8 * * 0'   # الأحد 10:00 ص توقيت القاهرة = 08:00 UTC
-  workflow_dispatch:        # تشغيل يدوي للتجربة
+    - cron: '0 8 * * 0'
+  workflow_dispatch:
 
 jobs:
   design-job:
@@ -14,7 +14,7 @@ jobs:
       - name: 📥 تحميل الكود
         uses: actions/checkout@v4
 
-      - name: 🐍 إعداد Python 3.11
+      - name: 🐍 إعداد Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
