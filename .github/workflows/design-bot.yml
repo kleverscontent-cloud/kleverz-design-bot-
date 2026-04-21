@@ -27,5 +27,5 @@ jobs:
         env:
           BASEROW_TOKEN: ${{ secrets.BASEROW_TOKEN }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+         GEMINI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python main.py
