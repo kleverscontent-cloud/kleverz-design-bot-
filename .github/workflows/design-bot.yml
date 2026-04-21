@@ -1,0 +1,31 @@
+name: 🎨 Kleverz AI Design Bot
+
+on:
+  schedule:
+    # كل أحد 10:00 صباحاً توقيت القاهرة (08:00 UTC)
+    - cron: '0 8 * * 0'
+  workflow_dispatch:  # تشغيل يدوي للتجربة
+
+jobs:
+  design-job:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 📥 تحميل الكود
+        uses: actions/checkout@v4
+
+      - name: 🐍 إعداد Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 تثبيت المكتبات
+        run: pip install -r requirements.txt
+
+      - name: 🚀 تشغيل البوت
+        env:
+          BASEROW_TOKEN: ${{ secrets.BASEROW_TOKEN }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python main.py
