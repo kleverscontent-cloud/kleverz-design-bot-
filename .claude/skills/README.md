@@ -6,8 +6,17 @@ Third-party skills vendored into this repo.
 
 Both skills come from [`watermarks-remover`](https://github.com/guillaumemeyer/watermarks-remover)
 (MIT, see `LICENSE`), imported from the `main` branch tarball at v0.5.0.
-Files are copied verbatim — no local modifications. Re-sync by replacing the
-directories wholesale rather than patching in place.
+
+### Local modifications
+
+Everything is upstream's except the following. Re-apply these after any re-sync,
+or drop them if upstream adopts equivalent wording.
+
+- `clean-user-facing-text/SKILL.md` — the `description` was written for Cursor
+  and named it twice. Changed `Use in Cursor when the user asks` to `Use when
+  the user asks`, and `when an installed Cursor Rule explicitly requires this
+  workflow` to `when a project convention explicitly requires this workflow`.
+  Trigger wording only; the workflow body is untouched.
 
 ## `clean-user-facing-text/`
 
