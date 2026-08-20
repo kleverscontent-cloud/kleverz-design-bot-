@@ -4,8 +4,10 @@ Third-party skills vendored into this repo.
 
 ## Source
 
-Both skills come from [`watermarks-remover`](https://github.com/guillaumemeyer/watermarks-remover)
+Both skills, and the [`service/`](../../service) directory they depend on, come
+from [`watermarks-remover`](https://github.com/guillaumemeyer/watermarks-remover)
 (MIT, see `LICENSE`), imported from the `main` branch tarball at v0.5.0.
+`service/` is copied as-is minus `__pycache__`.
 
 ### Local modifications
 
@@ -35,14 +37,40 @@ other layout-bearing spaces.
 
 ## `remove-ai-marks/`
 
-**Requires a companion service that is not vendored here.** This skill ships no
-code — it is a thin HTTP client that POSTs to the `watermarks-remover` service
-(the upstream repo's `service/` directory) at `$WATERMARKS_SERVICE_URL`,
-default `http://127.0.0.1:8765`. Without that service running, the skill does
-nothing but report the endpoint is unreachable.
+This skill ships no code — it is a thin HTTP client that POSTs to the
+`watermarks-remover` service, vendored at [`service/`](../../service) in this
+repo. Start it before using the skill:
 
-To use it, run the service from a checkout of the upstream repo (`make serve`)
-or its published container image.
+```bash
+python3 service/scripts/server.py --host 127.0.0.1 --port 8765
+```
+
+The skill reads `$WATERMARKS_SERVICE_URL`, defaulting to
+`http://127.0.0.1:8765`, so no configuration is needed for a local run. Check
+it with `curl -sf http://127.0.0.1:8765/health`. With the service down, the
+skill only reports the endpoint unreachable.
+
+Bind to loopback unless you set `WATERMARKS_SERVER_API_KEY` — the server warns
+about this on startup.
+
+### What works without extra tooling
+
+The core service is Python 3.10+ **stdlib only** and adds no dependency to
+`requirements.txt`. Out of the box it handles text Layer A (invisible Unicode),
+container metadata (Markdown, HTML, DOCX/XLSX/PPTX, EPUB, ODT, SVG), and image
+metadata. `GET /capabilities` reports the rest, and on a bare checkout it is
+all `false`:
+
+| Absent | Consequence |
+| --- | --- |
+| `exiftool`, `qpdf` | PDF strip is degraded — best-effort without exiftool, incomplete without qpdf |
+| `c2patool` | C2PA manifests cannot be inspected |
+| `ctrlregen`, `diffusion` | No pixel-domain removal; image cleaning is metadata-only |
+| `markllm`, `gumbel`, `claude-text`, `synthid` | No watermark detection, so no before/after measurement |
+
+The optional `Dockerfile.*` files and `setup_*.sh` scripts under `service/`
+build those heavy backends. They need external checkouts and are not required
+for anything above.
 
 ## Scope note
 
